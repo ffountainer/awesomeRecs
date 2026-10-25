@@ -26,6 +26,8 @@ This project explores the integration of the Reinforcement Learning into the rec
 
 ## Research Conclusions
 
+!important: check out the notebooks for more statistics, dataframes & summaries, if needed
+
 1. Как меняется поведение модели после RL-дообучения? Удаётся ли максимизировать заданное вознаграждение? Чем рекомендации дообученной модели отличаются от рекомендаций исходной? Как можно объяснить эти изменения?
 - Interestingly, in my experiments neither of the RL model showed clear improvement comparing to the baseline. Mean predicted reward increased by about 0.002 (reward ranging between -1 and 1), recall&10 & ndcg&10 even became a little bit worse. Recommendations of the RL models VS baseline model were also similar. 
 
@@ -501,16 +503,113 @@ Top-rewarded items among RL recommendations:
 
 2. Сохраняется ли релевантность рекомендаций? Оцените её с помощью Recall@K, NDCG@K и/или MAP@K. Проверьте, не начинает ли модель рекомендовать всем пользователям одни и те же объекты.
 
-- The estimates can be seen above. The relevance was similar for both baseline and RL models. The repeat rate also did not change significantly and remained close to 31%, even for the model which explictly penalised repetitions. 
+- The estimates can be seen above. The relevance was similar for both baseline and RL models (RL ones even showed a small decline). The repeat rate also did not change significantly and remained close to 31%, even for the model which explictly penalised repetitions.
+- The coverage diagnostics did not show items variability collapse.
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Recall@10</th>
+      <th>NDCG@10</th>
+      <th>Repeat rate</th>
+      <th>Catalog coverage</th>
+      <th>Unique recommended items</th>
+      <th>Examples</th>
+    </tr>
+    <tr>
+      <th>Model</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Baseline</th>
+      <td>0.2760</td>
+      <td>0.1702</td>
+      <td>0.3091</td>
+      <td>0.821</td>
+      <td>821</td>
+      <td>6724</td>
+    </tr>
+    <tr>
+      <th>rl_control</th>
+      <td>0.2751</td>
+      <td>0.1685</td>
+      <td>0.3087</td>
+      <td>0.824</td>
+      <td>824</td>
+      <td>6724</td>
+    </tr>
+    <tr>
+      <th>rl_low_kl</th>
+      <td>0.2748</td>
+      <td>0.1684</td>
+      <td>0.3087</td>
+      <td>0.824</td>
+      <td>824</td>
+      <td>6724</td>
+    </tr>
+    <tr>
+      <th>rl_low_kl_repeat_penalty</th>
+      <td>0.2739</td>
+      <td>0.1682</td>
+      <td>0.3086</td>
+      <td>0.822</td>
+      <td>822</td>
+      <td>6724</td>
+    </tr>
+  </tbody>
+</table>
+</div>
 
 3. Можно ли приблизиться к долгосрочным целям? Подумайте, как сформулировать вознаграждение, которое поощряло бы возвращение пользователей в сервис и продолжение взаимодействий. Какие сигналы в данных для этого подходят? Что можно проверить в офлайн-эксперименте, а для чего потребуется онлайн-проверка?
 
 - I proposed the following rule for the reward calculation:
     1. User liked the track that he listened to for p%: 0.5 + 0.5p
-    2. User disliked the track that he listened to for p%: -1 + 0.5p
+    2. User disliked the track that he listened to for p%: -0.5 - 0.5p
     3. User listened to a track for p% without like/dislike: p
 
-It was intended that dislikes will negatively influence the reward for the item, and for longer listening time the negative influence was more significant. 
+It was intended that dislikes would negatively influence the reward for the item, and for longer listening time the negative influence would be more significant (assuming the user will be more dissapointed if he/she wasted his/her time and still didn't like the song so much that even decided to dislike it. damn). So far, my hypothesis was not supported by the experiment results. Previous user activity, individual sessions durations, replaying previously recommended tracks, etc. can be utilised for offline experiments. On the other hand, hypothetically, for generating longer sequences it can be convenient to get continuosly updated human feedback, which will indeed be useful for long-term goals implementations. Interactive recommendation-feedback sessions can be created with analysing online queueing & smart shuffles activity. 
 
 4. Что происходит при генерации нескольких шагов вперёд? Например, если последовательно сгенерировать пять объектов, каждый раз добавляя очередной объект в контекст. Такая последовательность может всё сильнее отличаться от реальной истории пользователя: сгенерированная рекомендация не означает, что пользователь действительно с ней взаимодействовал. Как это влияет на последующие рекомендации и оценку вознаграждения?
+
+I did not experiment with the multi-step generation, but I suppose that this could accumulate errors in reward predictions and lead to unrealistic or repetitive sequences. An offline experiment could compare generated sequences with real user histories in terms of diversity/repetition rate/reward/etc.
+
 5. Каков компромисс между релевантностью и вознаграждением? Можно ли увеличить вознаграждение без заметного снижения точности рекомендаций? Как на этот компромисс влияют функция вознаграждения и настройки RL-дообучения?
+
+In my experiments, relevance and reward values did not provide enough information to conclude about their correlation. When I tried to let the model increase the reward by lowering KL, neither reward scores nor relevance metrics showed clear changes.
+
+## Limitations
+
+- The sample size was considerably small in order to make it managable under time & computing resources contraints (50 users and 1000 words vocabulary)
+- The dataset contained several interesting events and fields that could have been utilized in the reward objective formulation (like is_organic field or unlike/undislike events)
+- I did not experiment with multi-step sequences
+- I intended to use dislikes information in my reward function but was not able to mitigate the imbalance of dislike events and non-dislike events
+- There were no statistical tests performed
+
+## Future directions
+
+- Try to capture more complex dynamics in the reward model objective by firstly testing different conventional methods, such as pairwise preference, and then trying to formulate more general rule that can account for the lists of generated items (like in ([1](https://arxiv.org/pdf/2403.04875))).
+- Try out different RL optimisations.
+- Add statistical analysis.
+- Try to increase the sample size & revise data preprocessing. 
